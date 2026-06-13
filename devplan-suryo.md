@@ -794,7 +794,7 @@ Setelah Bonus 6 dieksekusi, dilakukan audit keamanan terhadap kode yang dihasilk
 
 **Verifikasi:**
 
-- `npm run build` di `pmb-frontend` lulus tanpa error (190.86 kB / gzip 56.91 kB).
+- `npm run build` di `pmb-frontend` berhasil tanpa error (190.86 kB / gzip 56.91 kB).
 - Migration syntax di-validate; user wajib jalankan `php artisan migrate` setelah pull.
 - Test fungsional regresi (§6.4) tetap relevan dengan tambahan langkah: peserta wajib paste kode konfirmasi sebelum tombol "Heregistrasi" / "Konfirmasi" / "Reschedule" aktif.
 
