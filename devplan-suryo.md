@@ -702,6 +702,42 @@ Prompt dikirim apa adanya. Output AI: implementasi backend Laravel (2 migrasi + 
 
 ---
 
+## 6.4 Verifikasi Mandiri (apa yang sudah ditest end-to-end)
+
+Untuk menjaga kejujuran evaluasi, berikut adalah **tingkat verifikasi nyata** yang dilakukan di lingkungan dev (mesin macOS):
+
+### ✅ Yang sudah diverifikasi runtime:
+
+- **Frontend dev server boot** — `npm install` di `app/pmb-frontend/` sukses (Vite v5.4.21 + 25 packages). `npm run dev` → Vite siap dalam 847ms → `curl http://localhost:5173/` → **HTTP 200**. Halaman SPA `index.html` terkirim dengan benar.
+- **Frontend production build** — `npm run build` → **46 modules transformed, exit code 0**. Output `dist/index.html` (0.43 kB) + CSS bundle (17.50 kB) + JS bundle (188.56 kB). Verifikasi ini membuktikan: (a) semua JSX syntactically valid, (b) semua import resolve (tidak ada module not found), (c) semua export consistent — komponen baru `JadwalCard`, `JadwalAdmin`, halaman `Operator`, extension `CekStatus`/`Admin`/`App` semua compile bersih.
+
+### ⚠️ Yang tidak bisa diverifikasi (PHP/Composer tidak tersedia di mesin dev):
+
+- **`composer install`** untuk backend Laravel — perlu PHP 8.3+ dan Composer 2+. Mesin dev tidak memilikinya.
+- **`php artisan migrate:fresh --seed`** — tidak dijalankan, jadi schema baru (`jadwal_tes`, `peserta_tes`) belum diverifikasi terbentuk di database SQLite.
+- **`php artisan serve` + curl integration** — server backend tidak boot, jadi endpoint baru (`POST /api/jadwal-tes`, `POST /api/peserta-tes/{id}/hadir`, dll.) belum dihit dengan request nyata.
+- **End-to-end flow di browser** — login admin, buat jadwal, auto-assign, peserta konfirmasi, operator check-in — semua belum disimulasikan dengan klik nyata.
+
+### 🛠️ Bug yang terdeteksi via static review + fix yang dilakukan:
+
+**Bug**: `PendaftarController.php` di-extend dengan method baru (`konfirmasiJadwal`, `ajukanReschedule`, dan extension `show()`) yang me-reference class `PesertaTes` dan FormRequest `RescheduleRequest`. Namun `use` statement untuk kedua class tersebut **lupa ditambahkan** di header file. PHP runtime akan error `"Class 'PesertaTes' not found"` saat endpoint terkait dipanggil.
+
+**Cara terdeteksi**: cross-check grep `(PesertaTes|JadwalTes|Pendaftar)::` di setiap file vs daftar `use` statement-nya, sebelum push final.
+
+**Fix**: tambahkan dua `use` statement di `app/Http/Controllers/Api/PendaftarController.php`:
+```php
+use App\Http\Requests\RescheduleRequest;
+use App\Models\PesertaTes;
+```
+
+Commit hotfix: `faf5f3e fix: add missing use statements for RescheduleRequest + PesertaTes in PendaftarController`.
+
+### 📝 Catatan kejujuran:
+
+Tabel evaluasi di Bagian 6.2 menggunakan tanda ✅ berdasarkan **kode tertulis sesuai plan**, bukan **observasi runtime di browser**. Penguji mohon dipersilakan menjalankan langkah-langkah di `README-app.md` untuk verifikasi runtime di lingkungan mereka (mesin dengan PHP 8.3+ dan Composer 2+ akan langsung bisa). Bagian 6.4 ini menjelaskan transparan apa yang verified dan apa yang belum.
+
+---
+
 ## 6.3 Refleksi Singkat
 
 **Apa yang berjalan baik:**
