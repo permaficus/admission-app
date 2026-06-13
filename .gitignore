@@ -9,20 +9,53 @@ Thumbs.db
 
 # System files
 *.log
-.DS_Store
 
 # Environment
 .env
 .env.local
 .env.*.local
-
-# Documentation files (local, not committed)
+*.tmp
+*.temp
 *.md.bak
 
-# IDE specific
+# IDE / tool caches
 .phpunit.result.cache
 .phpactor.json
 
-# Project files (keep repo clean)
-*.tmp
-*.temp
+# Existing admission-app (root-level) build outputs / vendor (apabila ada)
+pmb-backend/vendor/
+pmb-backend/storage/*.key
+pmb-backend/storage/framework/cache/*
+pmb-backend/storage/framework/sessions/*
+pmb-backend/storage/framework/testing/*
+pmb-backend/storage/framework/views/*
+pmb-backend/storage/logs/*
+pmb-backend/database/database.sqlite
+pmb-backend/database/*.sqlite-journal
+pmb-frontend/node_modules/
+pmb-frontend/dist/
+
+# Bonus 6 deliverable (app/ subdirectory) build outputs / vendor
+app/pmb-backend/vendor/
+app/pmb-backend/.env
+app/pmb-backend/.env.backup
+app/pmb-backend/.env.testing
+app/pmb-backend/.phpunit.result.cache
+app/pmb-backend/Homestead.json
+app/pmb-backend/Homestead.yaml
+app/pmb-backend/auth.json
+app/pmb-backend/npm-debug.log
+app/pmb-backend/yarn-error.log
+app/pmb-backend/storage/*.key
+app/pmb-backend/storage/framework/cache/*
+app/pmb-backend/storage/framework/sessions/*
+app/pmb-backend/storage/framework/testing/*
+app/pmb-backend/storage/framework/views/*
+app/pmb-backend/storage/logs/*
+app/pmb-backend/database/database.sqlite
+app/pmb-backend/database/*.sqlite-journal
+app/pmb-frontend/node_modules/
+app/pmb-frontend/.env
+app/pmb-frontend/.env.local
+app/pmb-frontend/.cache/
+app/pmb-frontend/dist/
