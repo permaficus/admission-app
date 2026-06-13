@@ -9,8 +9,10 @@ use App\Http\Requests\UpdateStatusRequest;
 use App\Models\Pendaftar;
 use App\Models\PesertaTes;
 use Illuminate\Http\JsonResponse;
-use Symfony\Component\HttpFoundation\StreamedResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * PendaftarController — API endpoint untuk mengelola data pendaftar PMB
@@ -46,22 +48,34 @@ class PendaftarController extends Controller
     {
         try {
             $nomorPendaftaran = $this->generateNomor();
+            $confirmationToken = Str::random(32);
 
             $pendaftar = Pendaftar::create([
-                'nomor_pendaftaran' => $nomorPendaftaran,
-                'nama'              => $request->nama,
-                'nomor_hp'          => $request->nomor_hp,
-                'email'             => $request->email,
-                'asal_sekolah'      => $request->asal_sekolah,
-                'prodi'             => $request->prodi,
-                'jalur'             => $request->jalur,
-                'status'            => Pendaftar::STATUS_MENUNGGU,
+                'nomor_pendaftaran'  => $nomorPendaftaran,
+                'nama'               => $request->nama,
+                'nomor_hp'           => $request->nomor_hp,
+                'email'              => $request->email,
+                'asal_sekolah'       => $request->asal_sekolah,
+                'prodi'              => $request->prodi,
+                'jalur'              => $request->jalur,
+                'confirmation_token' => $confirmationToken,
             ]);
+
+            // SECURITY: status di-set eksplisit, bukan via mass-assignment, karena
+            // 'status' sudah dikeluarkan dari $fillable di Model.
+            $pendaftar->status = Pendaftar::STATUS_MENUNGGU;
+            $pendaftar->save();
+
+            $payload = $pendaftar->fresh()->toArray();
+            // confirmation_token DIKEMBALIKAN HANYA SEKALI di response store.
+            // Calon mahasiswa wajib menyimpan token ini untuk operasi mutasi
+            // (heregistrasi, konfirmasi-jadwal, reschedule).
+            $payload['confirmation_token'] = $confirmationToken;
 
             return response()->json([
                 'success' => true,
-                'message' => 'Pendaftaran berhasil disimpan',
-                'data'    => $pendaftar,
+                'message' => 'Pendaftaran berhasil disimpan. Simpan kode konfirmasi Anda — diperlukan untuk heregistrasi dan konfirmasi jadwal.',
+                'data'    => $payload,
             ], 201);
         } catch (\Exception $e) {
             return response()->json([
@@ -69,6 +83,31 @@ class PendaftarController extends Controller
                 'message' => 'Gagal menyimpan data pendaftaran',
             ], 500);
         }
+    }
+
+    /**
+     * Verifikasi token konfirmasi yang disertakan oleh peserta pada endpoint
+     * mutasi public. Mengembalikan response 401 jika tidak cocok, atau null
+     * jika cocok.
+     */
+    private function ensureValidToken(Pendaftar $pendaftar, ?string $providedToken): ?JsonResponse
+    {
+        if (!$providedToken || !is_string($providedToken)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Kode konfirmasi wajib diisi',
+                'errors'  => ['confirmation_token' => ['Kode konfirmasi wajib diisi.']],
+            ], 401);
+        }
+
+        if (!hash_equals((string) $pendaftar->confirmation_token, $providedToken)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Kode konfirmasi tidak cocok dengan nomor pendaftaran',
+            ], 401);
+        }
+
+        return null;
     }
 
     /**
@@ -119,12 +158,26 @@ class PendaftarController extends Controller
             ];
         }
 
-        $pendaftarData = $pendaftar->toArray();
-        $pendaftarData['jadwal_tes'] = $jadwalPayload;
+        // SECURITY: response publik HANYA menampilkan field minimal yang
+        // dibutuhkan halaman cek status. Field PII (nomor_hp, email,
+        // asal_sekolah) sengaja TIDAK dikembalikan — endpoint publik bisa
+        // diakses siapapun yang menebak nomor pendaftaran (format
+        // PMB-YYYY-XXXX enumerable). Admin yang membutuhkan field lengkap
+        // tetap dapat mengakses via GET /api/pendaftar (auth:sanctum).
+        $publicPayload = [
+            'nomor_pendaftaran' => $pendaftar->nomor_pendaftaran,
+            'nama'              => $pendaftar->nama,
+            'prodi'             => $pendaftar->prodi,
+            'jalur'             => $pendaftar->jalur,
+            'status'            => $pendaftar->status,
+            'heregistrasi_at'   => $pendaftar->heregistrasi_at,
+            'created_at'        => $pendaftar->created_at,
+            'jadwal_tes'        => $jadwalPayload,
+        ];
 
         return response()->json([
             'success' => true,
-            'data'    => $pendaftarData,
+            'data'    => $publicPayload,
         ]);
     }
 
@@ -132,7 +185,7 @@ class PendaftarController extends Controller
      * Peserta konfirmasi akan hadir di jadwal tes-nya
      * POST /api/pendaftar/{nomorPendaftaran}/konfirmasi-jadwal
      */
-    public function konfirmasiJadwal(string $nomorPendaftaran): JsonResponse
+    public function konfirmasiJadwal(Request $request, string $nomorPendaftaran): JsonResponse
     {
         $pendaftar = Pendaftar::where('nomor_pendaftaran', $nomorPendaftaran)->first();
 
@@ -141,6 +194,10 @@ class PendaftarController extends Controller
                 'success' => false,
                 'message' => 'Nomor pendaftaran tidak ditemukan',
             ], 404);
+        }
+
+        if ($tokenError = $this->ensureValidToken($pendaftar, $request->input('confirmation_token'))) {
+            return $tokenError;
         }
 
         $peserta = $pendaftar->pesertaTes()
@@ -180,6 +237,10 @@ class PendaftarController extends Controller
                 'success' => false,
                 'message' => 'Nomor pendaftaran tidak ditemukan',
             ], 404);
+        }
+
+        if ($tokenError = $this->ensureValidToken($pendaftar, $request->input('confirmation_token'))) {
+            return $tokenError;
         }
 
         $peserta = $pendaftar->pesertaTes()
@@ -228,7 +289,12 @@ class PendaftarController extends Controller
     {
         try {
             $pendaftar = Pendaftar::findOrFail($id);
-            $pendaftar->update(['status' => $request->status]);
+            // SECURITY: 'status' dikeluarkan dari $fillable Model (lihat
+            // Pendaftar.php). Set eksplisit via property + save() supaya admin
+            // endpoint ini tetap berfungsi, tapi mass-assignment di endpoint
+            // public (mis. store) tidak bisa men-set status.
+            $pendaftar->status = $request->status;
+            $pendaftar->save();
 
             return response()->json([
                 'success' => true,
@@ -348,7 +414,7 @@ class PendaftarController extends Controller
      * Heregistrasi oleh mahasiswa yang lolos seleksi
      * POST /api/pendaftar/{nomorPendaftaran}/heregistrasi
      */
-    public function heregistrasi(string $nomorPendaftaran): JsonResponse
+    public function heregistrasi(Request $request, string $nomorPendaftaran): JsonResponse
     {
         $pendaftar = Pendaftar::where('nomor_pendaftaran', $nomorPendaftaran)->first();
 
@@ -357,6 +423,10 @@ class PendaftarController extends Controller
                 'success' => false,
                 'message' => 'Nomor pendaftaran tidak ditemukan',
             ], 404);
+        }
+
+        if ($tokenError = $this->ensureValidToken($pendaftar, $request->input('confirmation_token'))) {
+            return $tokenError;
         }
 
         if ($pendaftar->status !== Pendaftar::STATUS_LOLOS) {

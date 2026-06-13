@@ -3,6 +3,22 @@ import Button from '../ui/Button';
 import StatusBadge from './StatusBadge';
 import JadwalCard from './JadwalCard';
 import { pendaftarApi } from '../../utils/api';
+import { CONFIRMATION_TOKEN_KEY } from '../../constants';
+
+/**
+ * Baca kode konfirmasi yang sudah tersimpan untuk nomor tertentu (dari
+ * registrasi sebelumnya di browser yang sama).
+ */
+const readStoredToken = (nomorPendaftaran) => {
+  try {
+    const raw = localStorage.getItem(CONFIRMATION_TOKEN_KEY);
+    if (!raw) return '';
+    const map = JSON.parse(raw);
+    return map?.[nomorPendaftaran] || '';
+  } catch {
+    return '';
+  }
+};
 
 /**
  * CekStatus — komponen untuk calon mahasiswa mengecek status pendaftaran
@@ -15,6 +31,10 @@ const CekStatus = () => {
   const [loading, setLoading] = useState(false);
   const [heregLoading, setHeregLoading] = useState(false);
   const [heregSuccess, setHeregSuccess] = useState('');
+  // Kode konfirmasi (32-char) — diisi otomatis dari localStorage jika peserta
+  // registrasi di browser yang sama; bisa di-paste manual kalau buka di
+  // device lain.
+  const [confirmationToken, setConfirmationToken] = useState('');
 
   const handleCek = async (e) => {
     e.preventDefault();
@@ -24,8 +44,10 @@ const CekStatus = () => {
     setResult(null);
     setHeregSuccess('');
     try {
-      const res = await pendaftarApi.getByNomor(nomor.trim().toUpperCase());
+      const normalized = nomor.trim().toUpperCase();
+      const res = await pendaftarApi.getByNomor(normalized);
       setResult(res.data);
+      setConfirmationToken(readStoredToken(normalized));
     } catch (err) {
       setError(err.message || 'Nomor pendaftaran tidak ditemukan. Pastikan format benar (PMB-2025-XXXX).');
     } finally {
@@ -34,9 +56,17 @@ const CekStatus = () => {
   };
 
   const handleHeregistrasi = async () => {
+    if (!confirmationToken.trim()) {
+      setError('Masukkan kode konfirmasi yang Anda terima saat mendaftar.');
+      return;
+    }
     setHeregLoading(true);
+    setError('');
     try {
-      const res = await pendaftarApi.heregistrasi(result.nomor_pendaftaran);
+      const res = await pendaftarApi.heregistrasi(
+        result.nomor_pendaftaran,
+        confirmationToken.trim()
+      );
       setResult(res.data);
       setHeregSuccess(res.message);
     } catch (err) {
@@ -116,6 +146,13 @@ const CekStatus = () => {
               <p className="text-xs text-green-700 font-medium">
                 Selamat! Anda lolos seleksi. Lakukan heregistrasi untuk mengkonfirmasi kehadiran Anda.
               </p>
+              <input
+                type="text"
+                value={confirmationToken}
+                onChange={(e) => setConfirmationToken(e.target.value)}
+                placeholder="Kode konfirmasi (dari email pendaftaran)"
+                className="w-full px-3 py-2 border border-green-300 rounded-lg text-xs font-mono placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
               <Button
                 variant="success"
                 disabled={heregLoading}
@@ -148,6 +185,8 @@ const CekStatus = () => {
             <JadwalCard
               jadwal={result.jadwal_tes}
               nomorPendaftaran={result.nomor_pendaftaran}
+              confirmationToken={confirmationToken}
+              onConfirmationTokenChange={setConfirmationToken}
               onRefresh={async () => {
                 try {
                   const fresh = await pendaftarApi.getByNomor(result.nomor_pendaftaran);

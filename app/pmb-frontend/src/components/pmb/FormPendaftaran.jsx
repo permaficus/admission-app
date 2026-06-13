@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import Input from '../ui/Input';
 import Button from '../ui/Button';
-import { PRODI_LIST, JALUR_LIST } from '../../constants';
+import { PRODI_LIST, JALUR_LIST, CONFIRMATION_TOKEN_KEY } from '../../constants';
 import { pendaftarApi } from '../../utils/api';
 
 /**
@@ -70,6 +70,21 @@ const FormPendaftaran = ({ onSuccess }) => {
         nama: formData.nama.trim(),
         asal_sekolah: formData.asal_sekolah.trim(),
       });
+      // Simpan kode konfirmasi per nomor pendaftaran supaya tab "Cek Status"
+      // bisa otomatis menggunakannya untuk operasi mutasi (heregistrasi,
+      // konfirmasi-jadwal, reschedule). Backend hanya mengembalikan token
+      // sekali di response store ini — jangan hilang.
+      if (res.data?.confirmation_token && res.data?.nomor_pendaftaran) {
+        try {
+          const raw = localStorage.getItem(CONFIRMATION_TOKEN_KEY);
+          const map = raw ? JSON.parse(raw) : {};
+          map[res.data.nomor_pendaftaran] = res.data.confirmation_token;
+          localStorage.setItem(CONFIRMATION_TOKEN_KEY, JSON.stringify(map));
+        } catch {
+          // localStorage penuh / disabled — biarkan; UI akan minta peserta
+          // ketik kode manual nanti.
+        }
+      }
       onSuccess?.(res.data);
     } catch (err) {
       // Tangani validation errors dari backend

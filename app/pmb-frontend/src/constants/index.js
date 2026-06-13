@@ -11,7 +11,8 @@ export const STATUS_LIST = ['Menunggu', 'Lolos Seleksi', 'Tidak Lolos'];
 
 export const LOCALSTORAGE_KEY = 'pmb_pendaftar';
 
-export const ADMIN_CREDENTIALS = {
-  username: 'admin',
-  password: 'pmb2025',
-};
+// SECURITY: localStorage key untuk kode konfirmasi peserta. Token disimpan
+// setelah registrasi sukses dan dipakai ulang ketika peserta membuka tab
+// "Cek Status" di browser yang sama untuk konfirmasi jadwal / reschedule /
+// heregistrasi.
+export const CONFIRMATION_TOKEN_KEY = 'pmb_confirmation_token';

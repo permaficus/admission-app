@@ -20,6 +20,13 @@ class Pendaftar extends Model
         self::STATUS_TIDAK_LOLOS,
     ];
 
+    /**
+     * SECURITY: `status` sengaja TIDAK ada di $fillable. Status hanya boleh
+     * diubah oleh admin via PendaftarController.updateStatus (yang men-set
+     * eksplisit, bukan mass-assignment). Mencegah mass-assignment attack di
+     * mana attacker submit body { status: 'Lolos Seleksi' } via endpoint
+     * apapun yang lupa filter input.
+     */
     protected $fillable = [
         'nomor_pendaftaran',
         'nama',
@@ -28,8 +35,16 @@ class Pendaftar extends Model
         'asal_sekolah',
         'prodi',
         'jalur',
-        'status',
         'heregistrasi_at',
+        'confirmation_token',
+    ];
+
+    /**
+     * Token tidak pernah masuk ke serializer default (response API). Hanya
+     * di-return secara eksplisit pada response /api/pendaftar (POST store).
+     */
+    protected $hidden = [
+        'confirmation_token',
     ];
 
     protected $casts = [

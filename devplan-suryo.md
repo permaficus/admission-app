@@ -757,7 +757,50 @@ Tabel evaluasi di Bagian 6.2 menggunakan tanda ✅ berdasarkan **kode tertulis s
 
 ---
 
-*Dokumen ini ditutup dengan section 6 yang merefleksikan loop vibe coding utuh: **plan → prompt → app → evaluasi**. Konfirmasi bahwa modul Penjadwalan Tes berfungsi end-to-end tanpa merusak fitur lama dapat dilihat di `README-app.md` di repository ini.*
+## 6.5 Hardening Pass — Audit Keamanan & Perbaikan
+
+Setelah Bonus 6 dieksekusi, dilakukan audit keamanan terhadap kode yang dihasilkan (taksonomi readiness "Vouch": Security + Data Isolation + Maintainability). Audit menemukan beberapa temuan yang lolos test fungsional §6.4 karena berada di luar happy-path peserta. Semua temuan diperbaiki di pass yang sama.
+
+| Severity | Kategori | Temuan | Perbaikan |
+|---|---|---|---|
+| CRITICAL | Security | Kredensial admin di-hardcode (`pmb2025`) di seeder, dan duplikat di `pmb-frontend/src/constants/index.js` — siapapun yang clone repo bisa login | Hapus `ADMIN_CREDENTIALS` dari frontend; seeder baca `ADMIN_PASSWORD` dari env, fallback ke string acak 24-char yang dicetak ke console |
+| HIGH | Security | Endpoint `/api/auth/login` tanpa rate-limit — terbuka untuk brute-force | Pasang middleware `throttle:5,1` (5 percobaan / menit / IP) |
+| HIGH | Data Isolation (IDOR) | Endpoint mutasi public (`/heregistrasi`, `/konfirmasi-jadwal`, `/reschedule`) hanya butuh nomor pendaftaran (`PMB-YYYY-XXXX` — 9000 kombinasi enumerable). Siapapun yang menebak nomor bisa melakukan mutasi atas nama peserta lain | Tambah kolom `confirmation_token` (32-char random) di `pendaftars`; di-generate saat `store`, dikembalikan sekali di response, di-verifikasi via `hash_equals` di semua endpoint mutasi |
+| MEDIUM | Security | Response `/api/pendaftar/{nomor}` publik membocorkan PII (`nomor_hp`, `email`, `asal_sekolah`) — bisa di-scrape massal | `show()` hanya kembalikan field minimum (nama, prodi, jalur, status, tanggal, jadwal). Endpoint admin (`auth:sanctum`) tetap penuh |
+| MEDIUM | Security | CORS pakai wildcard `allowed_methods=['*']` + `allowed_headers=['*']` | Switch ke whitelist eksplisit; origin baca dari env `FRONTEND_URL` |
+| LOW | Maintainability | Model `Pendaftar` masukin `status` ke `$fillable` — mass-assignment attack potensial | Keluarkan `status` dari `$fillable`; `updateStatus` admin set eksplisit via property + `save()` |
+
+**Migration tambahan:** `2026_06_13_130000_add_confirmation_token_to_pendaftars.php` — kolom `string(64) nullable unique` setelah `status`.
+
+**Hidden field di Model:** `confirmation_token` masuk ke `$hidden` supaya tidak otomatis muncul di serialisasi default; backend secara eksplisit menambahkannya ke payload hanya pada response `store`.
+
+**Frontend UX:** Setelah submit registrasi, kode konfirmasi 32-karakter ditampilkan di kartu warning (`bg-amber-50`) dengan teks "Simpan Kode Konfirmasi — wajib untuk heregistrasi, konfirmasi jadwal, reschedule. Tidak akan ditampilkan ulang." Token juga di-cache di `localStorage` (key `pmb_confirmation_token` → object `{ nomor: token }`) supaya peserta yang membuka tab "Cek Status" di browser sama tidak perlu paste ulang. Kalau buka di device lain, ada input field untuk paste manual.
+
+**Lokasi perubahan:**
+
+- `app/pmb-backend/database/migrations/2026_06_13_130000_add_confirmation_token_to_pendaftars.php` (baru)
+- `app/pmb-backend/app/Models/Pendaftar.php` — `$fillable` + `$hidden`
+- `app/pmb-backend/app/Http/Controllers/Api/PendaftarController.php` — `store/show/heregistrasi/konfirmasiJadwal/ajukanReschedule/updateStatus` + helper `ensureValidToken`
+- `app/pmb-backend/routes/api.php` — `throttle:5,1` di `/auth/login`
+- `app/pmb-backend/config/cors.php` — whitelist method + header eksplisit
+- `app/pmb-backend/database/seeders/AdminSeeder.php` — baca `env('ADMIN_PASSWORD')`
+- `app/pmb-backend/.env.example` — placeholder `ADMIN_PASSWORD=` + `FRONTEND_URL=`
+- `app/pmb-frontend/src/constants/index.js` — hapus `ADMIN_CREDENTIALS`; tambah `CONFIRMATION_TOKEN_KEY`
+- `app/pmb-frontend/src/utils/api.js` — `heregistrasi/konfirmasiJadwal/reschedule` terima + kirim `confirmation_token`
+- `app/pmb-frontend/src/components/pmb/FormPendaftaran.jsx` — cache token ke `localStorage` setelah sukses register
+- `app/pmb-frontend/src/components/pmb/CekStatus.jsx` — baca token dari `localStorage`; input manual jika tidak ada
+- `app/pmb-frontend/src/components/pmb/JadwalCard.jsx` — terima token via props, kirim di setiap mutasi
+- `app/pmb-frontend/src/pages/Home.jsx` — tampilkan kartu warning "Simpan Kode Konfirmasi" di flow sukses pendaftaran
+
+**Verifikasi:**
+
+- `npm run build` di `pmb-frontend` lulus tanpa error (190.86 kB / gzip 56.91 kB).
+- Migration syntax di-validate; user wajib jalankan `php artisan migrate` setelah pull.
+- Test fungsional regresi (§6.4) tetap relevan dengan tambahan langkah: peserta wajib paste kode konfirmasi sebelum tombol "Heregistrasi" / "Konfirmasi" / "Reschedule" aktif.
+
+---
+
+*Dokumen ini ditutup dengan section 6 yang merefleksikan loop vibe coding utuh: **plan → prompt → app → evaluasi → hardening**. Konfirmasi bahwa modul Penjadwalan Tes berfungsi end-to-end tanpa merusak fitur lama dapat dilihat di `README-app.md` di repository ini.*
 
 ---
 

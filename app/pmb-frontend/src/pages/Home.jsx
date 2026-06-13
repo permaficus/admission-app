@@ -129,6 +129,24 @@ const Home = () => {
                   </p>
                 </div>
 
+                {/* Kode konfirmasi — HANYA tampil sekali setelah store; wajib disimpan
+                    peserta untuk operasi mutasi (heregistrasi / konfirmasi-jadwal /
+                    reschedule). */}
+                {successData.confirmation_token && (
+                  <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-4 text-left">
+                    <p className="text-xs text-amber-700 font-semibold mb-1">
+                      ⚠️ Simpan Kode Konfirmasi
+                    </p>
+                    <p className="text-[11px] text-amber-700 mb-2 leading-snug">
+                      Kode ini wajib disertakan saat heregistrasi, konfirmasi jadwal,
+                      dan pengajuan reschedule. Tidak akan ditampilkan ulang.
+                    </p>
+                    <p className="text-sm font-mono font-bold text-amber-900 bg-white border border-amber-200 rounded-lg px-3 py-2 break-all select-all">
+                      {successData.confirmation_token}
+                    </p>
+                  </div>
+                )}
+
                 {/* Ringkasan data */}
                 <div className="text-left bg-slate-50 rounded-xl p-4 space-y-2 text-sm">
                   {[

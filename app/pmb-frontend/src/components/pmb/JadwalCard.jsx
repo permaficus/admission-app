@@ -18,7 +18,13 @@ import {
  *   nomorPendaftaran: string (untuk endpoint konfirmasi/reschedule)
  *   onRefresh: callback setelah aksi sukses
  */
-const JadwalCard = ({ jadwal, nomorPendaftaran, onRefresh }) => {
+const JadwalCard = ({
+  jadwal,
+  nomorPendaftaran,
+  confirmationToken = '',
+  onConfirmationTokenChange,
+  onRefresh,
+}) => {
   const [konfirmLoading, setKonfirmLoading] = useState(false);
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const [alasan, setAlasan] = useState('');
@@ -45,11 +51,18 @@ const JadwalCard = ({ jadwal, nomorPendaftaran, onRefresh }) => {
   const formatJam = (jam) => (jam ? jam.substring(0, 5) : '-');
 
   const handleKonfirmasi = async () => {
+    if (!confirmationToken.trim()) {
+      setError('Masukkan kode konfirmasi yang Anda terima saat mendaftar.');
+      return;
+    }
     setKonfirmLoading(true);
     setError('');
     setSuccess('');
     try {
-      const res = await pendaftarApi.konfirmasiJadwal(nomorPendaftaran);
+      const res = await pendaftarApi.konfirmasiJadwal(
+        nomorPendaftaran,
+        confirmationToken.trim()
+      );
       setSuccess(res.message || 'Kehadiran berhasil dikonfirmasi');
       if (onRefresh) onRefresh();
     } catch (err) {
@@ -65,11 +78,19 @@ const JadwalCard = ({ jadwal, nomorPendaftaran, onRefresh }) => {
       setError('Alasan minimal 10 karakter');
       return;
     }
+    if (!confirmationToken.trim()) {
+      setError('Masukkan kode konfirmasi yang Anda terima saat mendaftar.');
+      return;
+    }
     setRescheduleLoading(true);
     setError('');
     setSuccess('');
     try {
-      const res = await pendaftarApi.reschedule(nomorPendaftaran, alasan.trim());
+      const res = await pendaftarApi.reschedule(
+        nomorPendaftaran,
+        alasan.trim(),
+        confirmationToken.trim()
+      );
       setSuccess(res.message || 'Permintaan reschedule berhasil diajukan');
       setRescheduleOpen(false);
       setAlasan('');
@@ -158,6 +179,21 @@ const JadwalCard = ({ jadwal, nomorPendaftaran, onRefresh }) => {
       {success && (
         <div className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
           ✓ {success}
+        </div>
+      )}
+
+      {(canKonfirmasi || canReschedule) && onConfirmationTokenChange && (
+        <div className="space-y-1">
+          <label className="block text-xs font-medium text-slate-700">
+            Kode konfirmasi (dari email pendaftaran)
+          </label>
+          <input
+            type="text"
+            value={confirmationToken}
+            onChange={(e) => onConfirmationTokenChange(e.target.value)}
+            placeholder="32 karakter — disertakan saat registrasi"
+            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-mono placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
         </div>
       )}
 

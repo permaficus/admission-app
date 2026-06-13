@@ -66,22 +66,24 @@ export const pendaftarApi = {
     }),
 
   /** POST /api/pendaftar/{nomor}/heregistrasi — heregistrasi mahasiswa lolos */
-  heregistrasi: (nomor) =>
+  heregistrasi: (nomor, confirmationToken) =>
     apiFetch(`/pendaftar/${encodeURIComponent(nomor)}/heregistrasi`, {
       method: 'POST',
+      body: JSON.stringify({ confirmation_token: confirmationToken }),
     }),
 
   /** POST /api/pendaftar/{nomor}/konfirmasi-jadwal — peserta konfirmasi kehadiran tes */
-  konfirmasiJadwal: (nomor) =>
+  konfirmasiJadwal: (nomor, confirmationToken) =>
     apiFetch(`/pendaftar/${encodeURIComponent(nomor)}/konfirmasi-jadwal`, {
       method: 'POST',
+      body: JSON.stringify({ confirmation_token: confirmationToken }),
     }),
 
   /** POST /api/pendaftar/{nomor}/reschedule — peserta ajukan reschedule */
-  reschedule: (nomor, alasan) =>
+  reschedule: (nomor, alasan, confirmationToken) =>
     apiFetch(`/pendaftar/${encodeURIComponent(nomor)}/reschedule`, {
       method: 'POST',
-      body: JSON.stringify({ alasan }),
+      body: JSON.stringify({ alasan, confirmation_token: confirmationToken }),
     }),
 };
 
